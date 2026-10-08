@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Forex Trading Monitor - MT5 Style</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --border: #30363d;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --up-color: #00e5ff;
+            --down-color: #ff6666;
+            --up-bright: #39ff14;
+            --down-bright: #ffee00;
+            --limit-buy: #39ff14;
+            --limit-sell: #ffee00;
+            --limit-both: #ff0055;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .table-container {
+            flex-grow: 1;
+            width: 100%;
+            margin: 0 auto;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            color: var(--text-muted);
+            font-weight: normal;
+            font-size: 11px;
+            padding: 5px 2px;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+        }
+
+        th:first-child, td:first-child { text-align: left; padding-left: 6px; }
+        th:last-child, td:last-child { padding-right: 6px; }
+
+        td {
+            padding: 6px 2px;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+
+        .name-col { font-weight: bold; font-size: 15px; letter-spacing: 0.5px; }
+        .name-buy { color: var(--limit-buy) !important; }
+        .name-sell { color: var(--limit-sell) !important; }
+        .name-both { color: var(--limit-both) !important; }
+
+        .qty-col, .stk-col { color: var(--text-main); }
+        .price-col { font-weight: bold; font-family: monospace; }
+        
+        .up { color: var(--up-color); }
+        .down { color: var(--down-color); }
+        .up-bright { color: var(--up-bright); }
+        .down-bright { color: var(--down-bright); }
+
+        .bottom-panel {
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border);
+            padding: 10px;
+            margin-top: auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .add-row, .backup-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .btn-backup {
+            background-color: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            flex: 1;
+            padding: 10px 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        input[type="text"], input[type="number"] {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 6px;
+            flex-grow: 1;
+            font-size: 15px;
+            text-transform: uppercase;
+        }
+
+        button.btn-add {
+            background-color: #238636;
+            color: white;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .modal {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            width: 100%;
+            max-width: 340px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+
+        .modal h3 { margin-top: 0; margin-bottom: 12px; color: var(--text-main); font-size: 17px; }
+        .modal-field { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-field label { font-size: 13px; color: var(--text-muted); }
+        .modal-field input[type="text"] { width: 55%; font-size: 15px; box-sizing: border-box; padding: 8px; text-transform: none; }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 16px;
+            width: 55%;
+            align-items: center;
+        }
+        .checkbox-group label {
+            color: var(--text-main);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #1f6feb;
+            cursor: pointer;
+        }
+        
+        .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+        .btn-save { background-color: #1f6feb; flex: 1; border: none; padding: 10px 6px; border-radius: 6px; color: white; font-weight: bold; font-size: 13px; cursor: pointer;}
+        .btn-delete { background-color: var(--down-color); flex: 1; border: none; padding: 10px 6px; border-radius: 6px; color: white; font-weight: bold; font-size: 13px; cursor: pointer;}
+        .btn-cancel { background-color: transparent; border: 1px solid var(--border); color: var(--text-main); flex: 1; padding: 10px 6px; border-radius: 6px; font-size: 13px; cursor: pointer;}
+    </style>
+</head>
+<body>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Lots</th>
+                    <th>Pos</th>
+                    <th>Open</th>
+                    <th>Bid/Last</th>
+                    <th>Delta</th>
+                    <th>%</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+    <div class="bottom-panel">
+        <div class="add-row">
+            <input type="text" id="new-ticker" placeholder="Пара (напр. EURUSD)" autocomplete="off">
+            <button class="btn-add" onclick="addNewTicker()">Добавить</button>
+        </div>
+        <div class="backup-row">
+            <button class="btn-backup" onclick="exportData()">Выгрузить JSON</button>
+            <button class="btn-backup" onclick="document.getElementById('file-input').click()">Загрузить JSON</button>
+            <input type="file" id="file-input" style="display: none;" accept=".json" onchange="importData(event)">
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal">
+            <h3 id="modal-title">Редактирование</h3>
+            <div class="modal-field">
+                <label>Общий объем:</label>
+                <input type="text" inputmode="decimal" id="edit-stk">
+            </div>
+            <div class="modal-field">
+                <label>Сделка (lots):</label>
+                <div style="width: 55%; display: flex; gap: 4px; align-items: center;">
+                    <button type="button" onclick="toggleSign('edit-qty')" style="padding: 4px 8px; background: #30363d; border: 1px solid var(--border); color: white; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer;">±</button>
+                    <input type="text" inputmode="decimal" id="edit-qty" style="width: 100%;">
+                </div>
+            </div>
+            <div class="modal-field" style="margin-top: -6px; margin-bottom: 12px;">
+                <label></label>
+                <div style="width: 55%;">
+                    <label style="font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="edit-apply-qty" style="width: 18px; height: 18px; accent-color: #1f6feb; cursor: pointer;"> Учитывать сделку
+                    </label>
+                </div>
+            </div>
+            <div class="modal-field">
+                <label>Цена открытия:</label>
+                <div style="display: flex; gap: 4px; width: 55%; align-items: center;">
+                    <input type="text" inputmode="decimal" id="edit-last" style="width: 100%; text-align: right;" placeholder="0.00000" oninput="handleCurrencyInput(event)" onkeydown="handleCurrencyKeyDown(event)">
+                    <button type="button" onclick="clearCurrencyInput()" style="background: #30363d; border: 1px solid var(--border); color: var(--text-muted); border-radius: 4px; padding: 8px 6px; font-size: 12px; cursor: pointer;" title="Сбросить">×</button>
+                </div>
+            </div>
+            <div class="modal-field">
+                <label>Limit order:</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" id="edit-buy"> Buy</label>
+                    <label><input type="checkbox" id="edit-sell"> Sell</label>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-save" onclick="savePosition()">Сохр.</button>
+                <button class="btn-delete" onclick="deletePosition()">Удалить</button>
+                <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const FINNHUB_KEY = 'daapct1r01qn50rj3ib0daapct1r01qn50rj3ibg';
+        
+        const defaultPortfolio = [
+            { ticker: 'EURUSD', stk: 1.0, qty: 0.5, last: 1.08500, current: 1.08750, delta: 0.00250, percent: 0.23, limitBuy: true, limitSell: false },
+            { ticker: 'USDJPY', stk: 2.0, qty: -1.0, last: 154.500, current: 154.200, delta: -0.300, percent: -0.19, limitBuy: false, limitSell: true },
+            { ticker: 'GBPUSD', stk: 0.5, qty: 0.5, last: 1.26500, current: 1.26800, delta: 0.00300, percent: 0.24, limitBuy: false, limitSell: false }
+        ];
+
+        let portfolio = defaultPortfolio;
+        try {
+            const savedData = localStorage.getItem('myForexPortfolio');
+            if (savedData) {
+                let parsedData = JSON.parse(savedData);
+                if (Array.isArray(parsedData)) {
+                    portfolio = parsedData.map(item => ({
+                        ticker: item.ticker || 'EURUSD',
+                        stk: parseFloat(item.stk) || 0,
+                        qty: parseFloat(item.qty) || 0,
+                        last: parseFloat(item.last) || 0,
+                        current: parseFloat(item.current) || 0,
+                        delta: parseFloat(item.delta) || 0,
+                        percent: parseFloat(item.percent) || 0,
+                        limitBuy: !!item.limitBuy,
+                        limitSell: !!item.limitSell
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error("Ошибка загрузки локальных данных:", e);
+            portfolio = defaultPortfolio;
+        }
+
+        let editingTicker = null;
+        let pressTimer = null;
+        let rawCentsValue = 0;
+
+        function saveToLocal() {
+            localStorage.setItem('myForexPortfolio', JSON.stringify(portfolio));
+        }
+
+        // Функция форматирования под стандарты MT5 (JPY пары имеют 3 знака, остальные 5)
+        function formatPrice(val, ticker) {
+            if (!val || isNaN(val)) return '0.00000';
+            const isJpy = ticker && ticker.includes('JPY');
+            return Number(val).toFixed(isJpy ? 3 : 5);
+        }
+
+        function isSortingEligible(item) {
+            const hasStk = item.stk !== null && item.stk !== undefined && item.stk !== 0;
+            if (hasStk) return true;
+            return item.delta < 0;
+        }
+
+        function updateCurrencyDisplay() {
+            const input = document.getElementById('edit-last');
+            const isJpy = editingTicker && editingTicker.includes('JPY');
+            const divisor = isJpy ? 1000 : 100000;
+            const numericVal = (rawCentsValue / divisor).toFixed(isJpy ? 3 : 5);
+            input.value = numericVal;
+        }
+
+        function handleCurrencyKeyDown(e) {
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                rawCentsValue = Math.floor(rawCentsValue / 10);
+                updateCurrencyDisplay();
+            } else if (!isNaN(e.key) && e.key !== ' ') {
+                e.preventDefault();
+                if (rawCentsValue < 1000000000) {
+                    rawCentsValue = rawCentsValue * 10 + parseInt(e.key, 10);
+                    updateCurrencyDisplay();
+                }
+            }
+        }
+
+        function handleCurrencyInput(e) {
+            updateCurrencyDisplay();
+        }
+
+        function clearCurrencyInput() {
+            rawCentsValue = 0;
+            updateCurrencyDisplay();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            portfolio.sort((a, b) => {
+                const aEligible = isSortingEligible(a);
+                const bEligible = isSortingEligible(b);
+
+                if (aEligible && !bEligible) return -1;
+                if (!aEligible && bEligible) return 1;
+
+                return Math.abs(b.percent) - Math.abs(a.percent);
+            });
+
+            portfolio.forEach(item => {
+                const isUp = item.delta > 0;
+                const isDown = item.delta < 0;
+                const absDelta = Math.abs(item.delta || 0);
+                const isJpy = item.ticker.includes('JPY');
+                
+                // Порог яркости для форекса (например, движение > 20 пипсов)
+                const brightThreshold = isJpy ? 0.20 : 0.00200;
+                const isBright = absDelta >= brightThreshold;
+
+                const percentColorClass = isUp ? 'up' : (isDown ? 'down' : '');
+                
+                let deltaColorClass = '';
+                if (isUp) {
+                    deltaColorClass = isBright ? 'up-bright' : 'up';
+                } else if (isDown) {
+                    deltaColorClass = isBright ? 'down-bright' : 'down';
+                }
+
+                const sign = isUp ? '+' : '';
+                
+                let nameClass = 'name-col';
+                if (item.limitBuy && item.limitSell) {
+                    nameClass += ' name-both';
+                } else if (item.limitBuy) {
+                    nameClass += ' name-buy';
+                } else if (item.limitSell) {
+                    nameClass += ' name-sell';
+                }
+
+                const tr = document.createElement('tr');
+                const hasStk = item.stk !== 0;
+                if (!hasStk && item.delta >= 0) {
+                    tr.style.opacity = '0.5';
+                }
+
+                tr.addEventListener('touchstart', (e) => startLongPress(e, item.ticker));
+                tr.addEventListener('touchend', cancelLongPress);
+                tr.addEventListener('touchmove', cancelLongPress);
+                
+                tr.addEventListener('mousedown', (e) => startLongPress(e, item.ticker));
+                tr.addEventListener('mouseup', cancelLongPress);
+                tr.addEventListener('mouseleave', cancelLongPress);
+
+                tr.innerHTML = `
+                    <td class="${nameClass}">${item.ticker}</td>
+                    <td class="stk-col">${item.stk ? item.stk.toFixed(2) : ''}</td>
+                    <td class="qty-col">${item.qty ? item.qty.toFixed(2) : ''}</td>
+                    <td class="price-col">${formatPrice(item.last, item.ticker)}</td>
+                    <td class="price-col">${formatPrice(item.current, item.ticker)}</td>
+                    <td class="delta-col ${deltaColorClass}">${sign}${isJpy ? item.delta.toFixed(3) : item.delta.toFixed(5)}</td>
+                    <td class="percent-col ${percentColorClass}">${sign}${item.percent ? item.percent.toFixed(2) : '0.00'}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function startLongPress(e, ticker) {
+            pressTimer = setTimeout(() => {
+                openEditModal(ticker);
+                if (navigator.vibrate) navigator.vibrate(50);
+            }, 600);
+        }
+
+        function cancelLongPress() {
+            if (pressTimer) clearTimeout(pressTimer);
+        }
+
+        function openEditModal(ticker) {
+            cancelLongPress();
+            editingTicker = ticker;
+            const item = portfolio.find(p => p.ticker === ticker);
+            
+            document.getElementById('modal-title').innerText = `Пара: ${ticker}`;
+            document.getElementById('edit-stk').value = item.stk || 0;
+            document.getElementById('edit-qty').value = item.qty || 0;
+            document.getElementById('edit-apply-qty').checked = true;
+            
+            const lastPrice = parseFloat(item.last) || 0;
+            const isJpy = ticker.includes('JPY');
+            rawCentsValue = Math.round(lastPrice * (isJpy ? 1000 : 100000));
+            updateCurrencyDisplay();
+
+            document.getElementById('edit-buy').checked = !!item.limitBuy;
+            document.getElementById('edit-sell').checked = !!item.limitSell;
+            
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            editingTicker = null;
+        }
+
+        function toggleSign(inputId) {
+            const input = document.getElementById(inputId);
+            let val = input.value.toString().trim();
+            if (!val) return;
+            if (val.startsWith('-')) {
+                input.value = val.substring(1);
+            } else {
+                input.value = '-' + val;
+            }
+        }
+
+        function parseInputValue(id) {
+            const val = document.getElementById(id).value.toString().replace(',', '.').trim();
+            return parseFloat(val) || 0;
+        }
+
+        function savePosition() {
+            const item = portfolio.find(p => p.ticker === editingTicker);
+            if (item) {
+                const applyQty = document.getElementById('edit-apply-qty').checked;
+                
+                if (applyQty) {
+                    const currentStk = parseFloat(item.stk) || 0;
+                    const changeQty = parseInputValue('edit-qty');
+                    item.stk = currentStk + changeQty;
+                    item.qty = changeQty;
+                } else {
+                    item.stk = parseInputValue('edit-stk');
+                }
+                
+                const isJpy = editingTicker.includes('JPY');
+                item.last = rawCentsValue / (isJpy ? 1000 : 100000);
+                
+                item.limitBuy = document.getElementById('edit-buy').checked;
+                item.limitSell = document.getElementById('edit-sell').checked;
+                
+                item.delta = item.current > 0 ? (item.current - item.last) : 0;
+                item.percent = item.last > 0 ? (item.delta / item.last) * 100 : 0;
+            }
+            saveToLocal();
+            closeModal();
+            renderTable();
+        }
+
+        function deletePosition() {
+            if(confirm(`Удалить ${editingTicker}?`)) {
+                portfolio = portfolio.filter(p => p.ticker !== editingTicker);
+                saveToLocal();
+                closeModal();
+                renderTable();
+            }
+        }
+
+        function addNewTicker() {
+            const input = document.getElementById('new-ticker');
+            let ticker = input.value.trim().toUpperCase().replace(/[\/\-_]/g, '');
+            
+            if (!ticker) return;
+            if (portfolio.some(p => p.ticker === ticker)) {
+                alert('Валютная пара уже в списке!');
+                return;
+            }
+
+            portfolio.push({
+                ticker: ticker, stk: 0, qty: 0, last: 0, current: 0, delta: 0, percent: 0, limitBuy: false, limitSell: false
+            });
+            
+            input.value = '';
+            saveToLocal();
+            renderTable();
+            updatePrices();
+        }
+
+        async function exportData() {
+            const jsonString = JSON.stringify(portfolio, null, 2);
+            const fileName = 'forex_monitor_backup.json';
+            const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+
+            const file = new File([blob], fileName, { type: 'application/json' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: 'Бэкап форекс-монитора' });
+                    return;
+                } catch (err) { if (err.name === 'AbortError') return; }
+            }
+
+            const url = URL.createObjectURL(blob);
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.href = url;
+            downloadAnchor.download = fileName;
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result.trim().replace(/^\uFEFF/, ''));
+                    if (Array.isArray(imported)) {
+                        portfolio = imported.map(item => ({
+                            ticker: item.ticker || 'EURUSD',
+                            stk: parseFloat(item.stk) || 0,
+                            qty: parseFloat(item.qty) || 0,
+                            last: parseFloat(item.last) || 0,
+                            current: parseFloat(item.current) || 0,
+                            delta: parseFloat(item.delta) || 0,
+                            percent: parseFloat(item.percent) || 0,
+                            limitBuy: !!item.limitBuy,
+                            limitSell: !!item.limitSell
+                        }));
+                        saveToLocal();
+                        renderTable();
+                        updatePrices();
+                        alert('Форекс портфель успешно загружен!');
+                    } else {
+                        alert('Ошибка формата файла.');
+                    }
+                } catch (err) { alert(`Ошибка: ${err.message}`); }
+            };
+            reader.readAsText(file, 'UTF-8');
+            event.target.value = '';
+        }
+
+        // Запрос актуальных курсов валют через официальный эндпоинт Finnhub Forex Rates
+        async function updatePrices() {
+            if (portfolio.length === 0 || !FINNHUB_KEY) return;
+
+            try {
+                // Запрашиваем базовые курсы относительно USD
+                const url = `https://finnhub.io/api/v1/forex/rates?base=USD&token=${FINNHUB_KEY}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data && data.quote) {
+                    const rates = data.quote; // Объект вида { "EUR": 0.92, "JPY": 154.2, ... }
+                    
+                    portfolio.forEach(item => {
+                        let base = item.ticker.substring(0, 3);
+                        let quote = item.ticker.substring(3, 6);
+                        
+                        let price = 0;
+                        // Расчет кросс-курсов через USD (так как базовая валюта USD)
+                        if (base === 'USD' && rates[quote]) {
+                            price = rates[quote];
+                        } else if (quote === 'USD' && rates[base]) {
+                            price = 1 / rates[base];
+                        } else if (rates[base] && rates[quote]) {
+                            price = rates[quote] / rates[base];
+                        }
+
+                        if (price && price > 0) {
+                            item.current = price;
+                            if (item.last > 0) {
+                                item.delta = item.current - item.last;
+                                item.percent = (item.delta / item.last) * 100;
+                            }
+                        }
+                    });
+
+                    saveToLocal();
+                    renderTable();
+                }
+            } catch (e) {
+                console.error("Ошибка обновления форекс курсов:", e);
+            }
+        }
+
+        renderTable();
+        updatePrices();
+        // Автообновление раз в минуту
+        setInterval(updatePrices, 60000);
+    </script>
+</body>
+</html>
