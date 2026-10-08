@@ -81,6 +81,27 @@
         .up-bright { color: var(--up-bright); }
         .down-bright { color: var(--down-bright); }
 
+        .api-status-bar {
+            font-size: 11px;
+            padding: 4px 10px;
+            background-color: #111418;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-dot {
+            height: 8px;
+            width: 8px;
+            background-color: #8b949e;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-dot.online { background-color: #39ff14; box-shadow: 0 0 4px #39ff14; }
+        .status-dot.error { background-color: #ff6666; box-shadow: 0 0 4px #ff6666; }
+
         .bottom-panel {
             background-color: var(--card-bg);
             border-top: 1px solid var(--border);
@@ -185,6 +206,11 @@
     </style>
 </head>
 <body>
+
+    <div class="api-status-bar">
+        <div><span class="status-dot" id="status-dot"></span><span id="status-text">Инициализация API...</span></div>
+        <div id="last-update" style="font-size: 10px;">--:--:--</div>
+    </div>
 
     <div class="table-container">
         <table>
@@ -295,6 +321,17 @@
         let editingTicker = null;
         let pressTimer = null;
         let rawCentsValue = 0;
+
+        function setApiStatus(status, text) {
+            const dot = document.getElementById('status-dot');
+            const txt = document.getElementById('status-text');
+            dot.className = 'status-dot ' + status;
+            txt.innerText = text;
+            if (status === 'online') {
+                const now = new Date();
+                document.getElementById('last-update').innerText = now.toTimeString().split(' ')[0];
+            }
+        }
 
         function saveToLocal() {
             localStorage.setItem('myForexPortfolio', JSON.stringify(portfolio));
@@ -582,6 +619,8 @@
         async function updatePrices() {
             if (portfolio.length === 0 || !FINNHUB_KEY) return;
 
+            setApiStatus('online', 'Запрос к Finnhub...');
+
             const promises = portfolio.map(async (item) => {
                 try {
                     let rawTicker = item.ticker.toUpperCase();
@@ -607,24 +646,31 @@
                 return null;
             });
 
-            const results = await Promise.all(promises);
-            const validData = results.filter(item => item !== null);
+            try {
+                const results = await Promise.all(promises);
+                const validData = results.filter(item => item !== null);
 
-            if (validData.length > 0) {
-                validData.forEach(apiItem => {
-                    const portItem = portfolio.find(p => p.ticker === apiItem.ticker);
-                    if (portItem) {
-                        portItem.current = parseFloat(apiItem.price) || 0;
-                        if (portItem.last > 0) {
-                            portItem.delta = portItem.current - portItem.last;
-                            portItem.percent = (portItem.delta / portItem.last) * 100;
-                        } else {
-                            portItem.percent = parseFloat(apiItem.change) || 0;
+                if (validData.length > 0) {
+                    validData.forEach(apiItem => {
+                        const portItem = portfolio.find(p => p.ticker === apiItem.ticker);
+                        if (portItem) {
+                            portItem.current = parseFloat(apiItem.price) || 0;
+                            if (portItem.last > 0) {
+                                portItem.delta = portItem.current - portItem.last;
+                                portItem.percent = (portItem.delta / portItem.last) * 100;
+                            } else {
+                                portItem.percent = parseFloat(apiItem.change) || 0;
+                            }
                         }
-                    }
-                });
-                saveToLocal();
-                renderTable();
+                    });
+                    saveToLocal();
+                    renderTable();
+                    setApiStatus('online', 'API подключен (данные актуальны)');
+                } else {
+                    setApiStatus('error', 'API ошибка: нет данных (или лимит)');
+                }
+            } catch (err) {
+                setApiStatus('error', 'Сетевая ошибка связи с API');
             }
         }
 
