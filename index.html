@@ -265,7 +265,7 @@
         const defaultPortfolio = [
             { ticker: 'EURUSD', stk: 1.0, qty: 0.5, last: 1.08500, current: 1.08750, delta: 0.00250, percent: 0.23, limitBuy: true, limitSell: false },
             { ticker: 'USDJPY', stk: 2.0, qty: -1.0, last: 154.500, current: 154.200, delta: -0.300, percent: -0.19, limitBuy: false, limitSell: true },
-            { ticker: 'GBPUSD', stk: 0.5, qty: 0.5, last: 1.26500, current: 1.26800, delta: 0.00300, percent: 0.24, limitBuy: false, limitSell: false }
+            { ticker: 'NZDUSD', stk: 0.5, qty: 0.5, last: 0.59000, current: 0.59200, delta: 0.00200, percent: 0.34, limitBuy: false, limitSell: false }
         ];
 
         let portfolio = defaultPortfolio;
@@ -300,7 +300,6 @@
             localStorage.setItem('myForexPortfolio', JSON.stringify(portfolio));
         }
 
-        // Функция форматирования под стандарты MT5 (JPY пары имеют 3 знака, остальные 5)
         function formatPrice(val, ticker) {
             if (!val || isNaN(val)) return '0.00000';
             const isJpy = ticker && ticker.includes('JPY');
@@ -364,7 +363,6 @@
                 const absDelta = Math.abs(item.delta || 0);
                 const isJpy = item.ticker.includes('JPY');
                 
-                // Порог яркости для форекса (например, движение > 20 пипсов)
                 const brightThreshold = isJpy ? 0.20 : 0.00200;
                 const isBright = absDelta >= brightThreshold;
 
@@ -581,53 +579,57 @@
             event.target.value = '';
         }
 
-        // Запрос актуальных курсов валют через официальный эндпоинт Finnhub Forex Rates
         async function updatePrices() {
             if (portfolio.length === 0 || !FINNHUB_KEY) return;
 
-            try {
-                // Запрашиваем базовые курсы относительно USD
-                const url = `https://finnhub.io/api/v1/forex/rates?base=USD&token=${FINNHUB_KEY}`;
-                const response = await fetch(url);
-                const data = await response.json();
+            const promises = portfolio.map(async (item) => {
+                try {
+                    let rawTicker = item.ticker.toUpperCase();
+                    if (rawTicker.length === 6 && !rawTicker.includes(':')) {
+                        rawTicker = `${rawTicker.substring(0, 3)}_${rawTicker.substring(3, 6)}`;
+                    }
+                    const symbol = rawTicker.includes(':') ? rawTicker : `OANDA:${rawTicker}`;
 
-                if (data && data.quote) {
-                    const rates = data.quote; // Объект вида { "EUR": 0.92, "JPY": 154.2, ... }
-                    
-                    portfolio.forEach(item => {
-                        let base = item.ticker.substring(0, 3);
-                        let quote = item.ticker.substring(3, 6);
-                        
-                        let price = 0;
-                        // Расчет кросс-курсов через USD (так как базовая валюта USD)
-                        if (base === 'USD' && rates[quote]) {
-                            price = rates[quote];
-                        } else if (quote === 'USD' && rates[base]) {
-                            price = 1 / rates[base];
-                        } else if (rates[base] && rates[quote]) {
-                            price = rates[quote] / rates[base];
-                        }
+                    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
 
-                        if (price && price > 0) {
-                            item.current = price;
-                            if (item.last > 0) {
-                                item.delta = item.current - item.last;
-                                item.percent = (item.delta / item.last) * 100;
-                            }
-                        }
-                    });
-
-                    saveToLocal();
-                    renderTable();
+                    if (data && data.c && data.c !== 0) {
+                        return {
+                            ticker: item.ticker,
+                            price: data.c,
+                            change: data.dp || 0
+                        };
+                    }
+                } catch (e) {
+                    console.error(`Ошибка по валютной паре ${item.ticker}:`, e);
                 }
-            } catch (e) {
-                console.error("Ошибка обновления форекс курсов:", e);
+                return null;
+            });
+
+            const results = await Promise.all(promises);
+            const validData = results.filter(item => item !== null);
+
+            if (validData.length > 0) {
+                validData.forEach(apiItem => {
+                    const portItem = portfolio.find(p => p.ticker === apiItem.ticker);
+                    if (portItem) {
+                        portItem.current = parseFloat(apiItem.price) || 0;
+                        if (portItem.last > 0) {
+                            portItem.delta = portItem.current - portItem.last;
+                            portItem.percent = (portItem.delta / portItem.last) * 100;
+                        } else {
+                            portItem.percent = parseFloat(apiItem.change) || 0;
+                        }
+                    }
+                });
+                saveToLocal();
+                renderTable();
             }
         }
 
         renderTable();
         updatePrices();
-        // Автообновление раз в минуту
         setInterval(updatePrices, 60000);
     </script>
 </body>
